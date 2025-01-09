@@ -1,0 +1,28 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Go-specific files
+/bin/
+/pkg/
+/vendor/
+
+# Environment files
+.env
