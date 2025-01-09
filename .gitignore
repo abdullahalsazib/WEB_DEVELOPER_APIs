@@ -14,7 +14,7 @@
 # IDE-specific files
 .vscode/
 .idea/
-
+tmp/
 # OS-specific files
 .DS_Store
 Thumbs.db
