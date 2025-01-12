@@ -5,98 +5,113 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
-type RouteResponse struct {
-	Message string `json:"message"`
-	ID      string `json:"id,omitempty"`
+// Define a model for your data
+type User struct {
+	ID    uint   `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+var db *gorm.DB
+var err error
+
+// Initialize the database connection
+func init() {
+	// Open a MySQL connection using GORM
+	dsn := "root:1234@tcp(localhost:3306)/my_database?charset=utf8mb4&parseTime=True&loc=Local"
+
+	db, err = gorm.Open("mysql", dsn)
+	if err != nil {
+		log.Fatal("Could not connect to the database: ", err)
+	}
+	fmt.Println("Successfully connected to MySQL database!")
+
+	// Migrate the User model to the database
+	db.AutoMigrate(&User{})
 }
 
 func main() {
-	fmt.Println("web-developer-project")
+	// Initialize the router
+	r := mux.NewRouter()
 
-	router := mux.NewRouter()
+	// Define routes and associate them with handler functions
+	r.HandleFunc("/users", getUsers).Methods("GET")
+	r.HandleFunc("/users/{eid}", getUserByID).Methods("GET")
+	r.HandleFunc("/users/first", getTheFirstUser).Methods("GET")
+	r.HandleFunc("/users", createUser).Methods("POST")
 
-	router.HandleFunc("/register", register).Methods("POST")
-	router.HandleFunc("/login", login).Methods("POST")
-	router.HandleFunc("/projects", createProject).Methods("POST")
-	router.HandleFunc("/projects/{id}", updateProject).Methods("PUT")
-	router.HandleFunc("/projects", getProject).Methods("GET")
-	router.HandleFunc("/projects/{id}", getProject).Methods("GET")
-	router.HandleFunc("/projects/{id}", deleteProject).Methods("DELETE")
-
-	// server on serve
-	fmt.Println("Server is running on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", router))
-
+	// Start the server on port 8080
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
-// register
-func register(w http.ResponseWriter, r *http.Request) {
+// Handle the endpoint to retrieve all users
+func getUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(RouteResponse{Message: "Hello, Message from register!"})
-	if err != nil {
-		log.Fatal(err)
-	}
+	var users []User
+	db.Find(&users)
+	json.NewEncoder(w).Encode(users)
 }
 
-// login
-func login(w http.ResponseWriter, r *http.Request) {
+// Handle the endpoint to retrieve a user by ID
+func getUserByID(w http.ResponseWriter, r *http.Request) {
+	// Get the ID from the URL params
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(RouteResponse{Message: "Hello, Message from login!"})
+
+	// Parse the ID from the URL (eid)
+	eid := mux.Vars(r)["eid"]
+	id, err := strconv.Atoi(eid) // Convert string to int
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		return
 	}
+
+	var user User
+	// Query the database for the user by ID
+	if err := db.First(&user, id).Error; err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Return the user as JSON
+	json.NewEncoder(w).Encode(user)
 }
 
-// createProject
-func createProject(w http.ResponseWriter, r *http.Request) {
-
+// Handle the endpoint to retrieve the first user
+func getTheFirstUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(RouteResponse{Message: "Hello, Message from createProject!"})
-	if err != nil {
-		log.Fatal(err)
+	var user User
+
+	// Retrieve the first user from the database
+	if err := db.First(&user).Error; err != nil {
+		http.Error(w, "No users found", http.StatusNotFound)
+		return
 	}
+
+	// Return the first user as JSON
+	json.NewEncoder(w).Encode(user)
 }
 
-// updateProject
-func updateProject(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(RouteResponse{Message: "Hello, Message from updateProject!", ID: id})
-	CheckTheError(err)
-}
-
-// getProject
-func getProject(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(RouteResponse{Message: "Hello, Message from getProject!", ID: id})
-	if err != nil {
-		log.Fatal(err)
+// Handle the endpoint to create a new user
+func createUser(w http.ResponseWriter, r *http.Request) {
+	var user User
+	// Decode the request body into the user struct
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
 	}
-}
 
-// deleteProject
-func deleteProject(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(RouteResponse{Message: "Hello, Message from deleteProject!", ID: id})
-	if err != nil {
-		log.Fatal(err)
+	// Create the user in the database
+	if err := db.Create(&user).Error; err != nil {
+		http.Error(w, "Could not create user", http.StatusInternalServerError)
+		return
 	}
-}
-
-func CheckTheError(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
+	w.WriteHeader(http.StatusCreated)
+	fmt.Fprintf(w, "User created with ID: %d", user.ID)
 }
