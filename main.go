@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +24,17 @@ var mu sync.Mutex
 
 func main() {
 	route := gin.Default()
+
+	// apply cors middleware
+	route.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"}, // Allow all origins (Change this for security)
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	route.GET("/", homeHandler)
 	route.GET("/books", getBooks)
 	route.POST("/books", createBook)
